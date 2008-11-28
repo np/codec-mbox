@@ -1,0 +1,30 @@
+name:           mbox
+cabal-Version:  >=1.2
+version:        0.1
+license:        BSD3
+license-File:   LICENSE
+copyright:      (c) Nicolas Pouillard
+author:         Nicolas Pouillard
+maintainer:     Nicolas Pouillard <nicolas.pouillard@gmail.com>
+category:       Codec
+synopsis:       A library to read and write mailboxes in mbox format
+description:    The library provides functions to read, write, and
+                manipulate mbox's. This library focuses on three points:
+                robustness, efficency, and scalability. It's using lazy
+                bytestrings and can handle very big mailboxes.
+stability:      Experimental
+build-type:     Simple
+
+--source-repository head
+--  type:     darcs
+--  location: http://code.haskell.org/mbox
+
+--source-repository this
+--  type:     darcs
+--  location: http://code.haskell.org/mbox
+--  tag:      0.1
+
+Library
+    build-depends: base>=3.0, containers>=0.1, bytestring>=0.9, data-accessor>=0.1.4
+    exposed-modules: Codec.Mbox
+    ghc-options: -Wall
