@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, FlexibleInstances #-}
+{-# LANGUAGE BangPatterns, FlexibleInstances, TypeOperators #-}
 --------------------------------------------------------------------
 -- |
 -- Module    : Codec.Mbox
@@ -19,6 +19,8 @@ module Codec.Mbox
   , mboxMsgSenderA
   , mboxMsgTimeA
   , mboxMsgBodyA
+  , mboxMsgFileA
+  , mboxMsgOffsetA
   , parseMboxFile
   , parseMboxFiles
   , parseMbox
@@ -40,6 +42,15 @@ import Data.Int (Int64)
 import System.IO
 import System.IO.Unsafe (unsafeInterleaveIO)
 
+data a :*: b = !a :*: !b
+
+first' :: (a -> b) -> (a :*: c) -> (b :*: c)
+first' f !(a :*: c) = (f a :*: c)
+{-# INLINE first' #-}
+uncurry' :: (a -> b -> c) -> a :*: b -> c
+uncurry' f (x :*: y) = f x y
+{-# INLINE uncurry' #-}
+
 --import Test.QuickCheck
 
 -- | An Mbox is a list of MboxMessage
@@ -48,7 +59,11 @@ newtype Mbox s = Mbox { unMbox :: [MboxMessage s] }
 
 -- | An MboxMessage represent an mbox message, featuring
 -- the sender, the date-time, and the message body.
-data MboxMessage s = MboxMessage { mboxMsgSender :: s, mboxMsgTime :: s, mboxMsgBody :: s }
+data MboxMessage s = MboxMessage { mboxMsgSender :: s
+                                 , mboxMsgTime   :: s
+                                 , mboxMsgBody   :: s
+                                 , mboxMsgFile   :: FilePath
+                                 , mboxMsgOffset :: Int64 }
   deriving (Eq, Ord, Show)
 
 mboxMsgSenderA :: Accessor (MboxMessage s) s
@@ -59,6 +74,12 @@ mboxMsgTimeA = accessor mboxMsgTime (\x r -> r{mboxMsgTime=x})
 
 mboxMsgBodyA :: Accessor (MboxMessage s) s
 mboxMsgBodyA = accessor mboxMsgBody (\x r -> r{mboxMsgBody=x})
+
+mboxMsgFileA :: Accessor (MboxMessage s) FilePath
+mboxMsgFileA = accessor mboxMsgFile (\x r -> r{mboxMsgFile=x})
+
+mboxMsgOffsetA :: Accessor (MboxMessage s) Int64
+mboxMsgOffsetA = accessor mboxMsgOffset (\x r -> r{mboxMsgOffset=x})
 
 readYear :: MboxMessage C.ByteString -> C.ByteString -> Int
 readYear m s =
@@ -95,13 +116,14 @@ msgMonthYear m =
    [_wday, month, _mday, _hour, year] -> (readMonth m month, readYear m year)
    _ -> error ("msgMonthYear: badly formatted date in " ++ show (C.unpack $ mboxMsgTime m))
 
-nextFrom :: ByteString -> Maybe (ByteString, ByteString)
+nextFrom :: ByteString -> Maybe (Int64, ByteString, ByteString)
 nextFrom !orig = goNextFrom 0 orig
    where goNextFrom !count !input = do
            off <- (+1) <$> C.elemIndex '\n' input
            let (nls, i') = first C.length $ C.span (=='\n') $ C.drop off input
            if C.take 5 i' == bFrom
-            then Just (C.take (off + count + (nls - 1)) orig, C.drop 5 i')
+            then let off' = off + count + (nls - 1) in
+                 Just (off', C.take off' orig, C.drop 5 i')
             else goNextFrom (off + count + nls) i'
 
 -- TODO rules:
@@ -190,24 +212,25 @@ skipFirstFrom xs | bFrom == C.take 5 xs = Right $ C.drop 5 xs
                  | otherwise = Left "skipFirstFrom: badly formatted mbox: 'From ' expected at the beginning"
 
 -- | Same as parseMbox but cat returns an error message.
-safeParseMbox :: ByteString -> Either String (Mbox ByteString)
-safeParseMbox s | C.null s  = Right $ Mbox []
-                | otherwise = (Mbox . map finishMboxMessageParsing . splitMboxMessages) <$> (skipFirstFrom s)
+safeParseMbox :: FilePath -> Int64 -> ByteString -> Either String (Mbox ByteString)
+safeParseMbox fp offset s | C.null s  = Right $ Mbox []
+                          | otherwise = (Mbox . map (uncurry' $ finishMboxMessageParsing fp) . splitMboxMessages offset)
+                                         <$> (skipFirstFrom s)
 
 -- | Turns a ByteString into an Mbox by splitting on 'From' lines and
 -- unquoting the '>*From's of the message.
 parseMbox :: ByteString -> Mbox ByteString
-parseMbox = either error id . safeParseMbox
+parseMbox = either error id . safeParseMbox "" 0
 
-splitMboxMessages :: ByteString -> [ByteString]
-splitMboxMessages !input =
+splitMboxMessages :: Int64 -> ByteString -> [Int64 :*: ByteString]
+splitMboxMessages !offset !input =
   case nextFrom input of
-    Nothing | C.null input -> []
-            | otherwise    -> [input]
-    Just (!msg, rest)      -> msg : splitMboxMessages rest
+    Nothing | C.null input      -> []
+            | otherwise         -> [(offset :*: input)]
+    Just (!offset', !msg, rest) -> (offset :*: msg) : splitMboxMessages (6 + offset + offset') rest
 
-finishMboxMessageParsing :: ByteString -> MboxMessage ByteString
-finishMboxMessageParsing !inp = MboxMessage sender time (fromQuoting pred body)
+finishMboxMessageParsing :: FilePath -> Int64 -> ByteString -> MboxMessage ByteString
+finishMboxMessageParsing fp !offset !inp = MboxMessage sender time (fromQuoting pred body) fp offset
   where ((sender,time),body) = first (breakAt ' ') $ breakAt '\n' inp
         breakAt c = second (C.drop 1 {- a safe tail -}) . C.break (==c)
 
@@ -217,7 +240,7 @@ printMbox = C.intercalate (C.singleton '\n') . map printMboxMessage . unMbox
 
 -- | Returns an header line in mbox format given an mbox message.
 printMboxFromLine :: MboxMessage ByteString -> ByteString
-printMboxFromLine (MboxMessage sender time _) =
+printMboxFromLine (MboxMessage sender time _ _ _) =
   C.append bFrom
     $ C.append sender
     $ C.cons   ' '
@@ -230,44 +253,50 @@ printMboxMessage :: MboxMessage ByteString -> ByteString
 printMboxMessage msg = printMboxFromLine msg `C.append` fromQuoting (+1) (mboxMsgBody msg)
 
 readRevMboxFile :: FilePath -> IO (Mbox ByteString)
-readRevMboxFile fn = readRevMboxHandle =<< openFile fn ReadMode
+readRevMboxFile fp = readRevMboxHandle fp =<< openFile fp ReadMode
 
--- | @readRevMboxHandle h@ returns a reversed mbox for a file handle.
+-- | @readRevMboxHandle fp h@ returns a reversed mbox for a file handle.
 -- The file handle is supposed to be in text mode, readable.
 -- buffering?
-readRevMboxHandle :: Handle -> IO (Mbox ByteString)
-readRevMboxHandle fh = readRevMbox <$> readHandleBackward fh
+readRevMboxHandle :: FilePath -> Handle -> IO (Mbox ByteString)
+readRevMboxHandle fp fh = do siz <- hFileSize fh
+                             readRevMbox fp siz <$> readHandleBackward mboxChunkSize siz fh
 
-readRevMbox :: [ByteString] -> Mbox ByteString
-readRevMbox chunks = Mbox $ go (filter (not . C.null) chunks)
-  where go []          = []
-        go (chunk1:cs) =
+readRevMbox :: FilePath -> Integer -> [ByteString] -> Mbox ByteString
+readRevMbox fp filesize chunks = Mbox $ go (fromInteger filesize+1) (filter (not . C.null) chunks)
+  where go  _   []          = []
+        go !siz (chunk1:cs) =
                   case nextFrom chunk1 of
-                    Nothing           -> kont cs chunk1
-                    Just (!msg, rest) ->
-                      (map finishMboxMessageParsing . reverse . splitMboxMessages $ rest) ++ kont cs msg
+                    Nothing                         -> kont siz cs chunk1
+                    Just (!_backoffset, !msg, rest) ->
+                      let siz' = siz - C.length rest - 6 in
+                      (map finishmmp . reverse . map (first' (+siz')) . splitMboxMessages 0 $ rest)
+                      ++ kont siz' cs msg
 
-        kont []           = (:[]) . finishLast
-        kont (chunk2:cs2) = \k -> go (chunk2 `C.append` k : cs2)
+        kont !_   []           = (:[]) . finishLast
+        kont !siz (chunk2:cs2) = \k -> go siz (chunk2 `C.append` k : cs2)
 
-        finishLast = either (error . ("readRevMboxHandle: impossible: " ++)) finishMboxMessageParsing
-                   . skipFirstFrom
+        finishLast =
+          finishMboxMessageParsing fp 0 . either (error . ("readRevMbox: impossible: " ++)) id . skipFirstFrom
 
--- | @readHandleBackward h@ lazily reads a file handle from the end of the
--- file. The file contents is returned as a reversed list of chunks.
+        finishmmp = uncurry' $ finishMboxMessageParsing fp
+
+-- | @readHandleBackward maxChunkSize size h@ lazily reads the @h@ file handle
+-- from the end. The file contents is returned as a reversed list of chunks.
 -- The result is such that if one apply @C.concat . reverse@ one get
 -- the in-order contents.
 {-
-propIO_read_anydir fh =
+propIO_read_anydir (Positive maxChunkSize) fh =
    do xs <- hGetContent fh
-      ys <- readHandleBackward fh
+      siz <- hFileSize fh
+      ys <- readHandleBackward maxChunkSize siz fh
       xs == C.concat (reverse ys)
 -}
-readHandleBackward :: Handle -> IO [ByteString]
-readHandleBackward fh = hFileSize fh >>= go
+readHandleBackward :: Integer -> Integer -> Handle -> IO [ByteString]
+readHandleBackward maxChunkSize siz0 fh = go siz0
   where go 0   = return []
         go siz = unsafeInterleaveIO $
-          do let delta = min mboxChunkSize siz
+          do let delta = min maxChunkSize siz
                  siz'  = siz - delta
              hSeek fh AbsoluteSeek siz'
              s <- C.hGet fh $ fromInteger delta
@@ -277,8 +306,8 @@ data Direction = Backward | Forward
 
 -- | Returns a mbox given a direction (forward/backward) and a file path.
 parseMboxFile :: Direction -> FilePath -> IO (Mbox ByteString)
-parseMboxFile Forward  = (either fail return =<<) . (safeParseMbox <$>) . C.readFile
-parseMboxFile Backward = readRevMboxFile
+parseMboxFile Forward  fp = (either fail return =<<) . (safeParseMbox fp 0 <$>) . C.readFile $ fp
+parseMboxFile Backward fp = readRevMboxFile fp
 
 -- | Returns a mbox list given a direction (forward/backward) and a list of file path.
 --   Note that files are opened lazily.
