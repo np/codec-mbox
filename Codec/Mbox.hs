@@ -25,6 +25,7 @@ module Codec.Mbox
   , parseMboxFiles
   , parseMbox
   , safeParseMbox
+  , parseOneMboxMessage
   , printMbox
   , printMboxMessage
   , printMboxFromLine
@@ -39,6 +40,7 @@ import qualified Data.ByteString.Lazy.Char8 as C -- Char8 interface over Lazy By
 import Data.Accessor
 import Data.ByteString.Lazy (ByteString)
 import Data.Int (Int64)
+import Data.Maybe (listToMaybe)
 import System.IO
 import System.IO.Unsafe (unsafeInterleaveIO)
 
@@ -251,6 +253,17 @@ printMboxFromLine (MboxMessage sender time _ _ _) =
 -- | Returns a ByteString given an mbox message.
 printMboxMessage :: MboxMessage ByteString -> ByteString
 printMboxMessage msg = printMboxFromLine msg `C.append` fromQuoting (+1) (mboxMsgBody msg)
+
+-- lazyness at work!
+
+-- | Given a file handle and an offset, parseOneMboxMessage returns
+-- the message a this offset.
+parseOneMboxMessage :: FilePath -> Handle -> Integer -> IO (MboxMessage C.ByteString)
+parseOneMboxMessage fp fh offset = do
+  hSeek fh AbsoluteSeek offset
+  s <- C.hGetContents fh
+  a <- either fail return $ safeParseMbox fp (fromInteger offset) s
+  (maybe (fail "parseOneMboxMessage: end of file") return . listToMaybe . unMbox) a
 
 readRevMboxFile :: FilePath -> IO (Mbox ByteString)
 readRevMboxFile fp = readRevMboxHandle fp =<< openFile fp ReadMode
