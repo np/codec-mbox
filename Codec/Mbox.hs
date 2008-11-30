@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, FlexibleInstances, TypeOperators #-}
+{-# LANGUAGE BangPatterns, TypeOperators #-}
 --------------------------------------------------------------------
 -- |
 -- Module    : Codec.Mbox
