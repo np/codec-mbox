@@ -12,23 +12,33 @@
 --------------------------------------------------------------------
 
 module Codec.Mbox
-  ( Mbox(..)
+  (
+  -- * Mailbox, message, and direction data types
+    Mbox(..)
   , MboxMessage(..)
   , Direction(..)
-  , Month(..)
-  , mboxMsgSenderA
-  , mboxMsgTimeA
-  , mboxMsgBodyA
-  , mboxMsgFileA
-  , mboxMsgOffsetA
+
+  -- * Mailbox parsing functions
   , parseMboxFile
   , parseMboxFiles
   , parseMbox
   , safeParseMbox
   , parseOneMboxMessage
+
+  -- * Mailbox printing functions
   , printMbox
   , printMboxMessage
   , printMboxFromLine
+
+  -- * Accessors
+  , mboxMsgSenderA
+  , mboxMsgTimeA
+  , mboxMsgBodyA
+  , mboxMsgFileA
+  , mboxMsgOffsetA
+
+  -- * Misc
+  , Month(..)
   , fromQuoting
   , msgYear
   , msgMonthYear
@@ -55,11 +65,11 @@ uncurry' f (x :*: y) = f x y
 
 --import Test.QuickCheck
 
--- | An Mbox is a list of MboxMessage
+-- | An 'Mbox' is a list of 'MboxMessage'
 newtype Mbox s = Mbox { unMbox :: [MboxMessage s] }
   deriving (Eq, Ord, Show)
 
--- | An MboxMessage represent an mbox message, featuring
+-- | An 'MboxMessage' represent an mbox message, featuring
 -- the sender, the date-time, and the message body.
 data MboxMessage s = MboxMessage { mboxMsgSender :: s
                                  , mboxMsgTime   :: s
@@ -142,7 +152,10 @@ nextFrom !orig = goNextFrom 0 orig
 --   Perhaps fusing nextFrom and fromQuoting could give more performances
 --   (but will decrease performances of mbox-counting).
 
--- | Quoted from http://qmail.org./man/man5/mbox.html:
+-- | @fromQuoting f s@ returns @s@ where the quoting level
+-- of From_ lines has been updated using the @f@ function.
+--
+-- The From_ spefication, quoted from <http://qmail.org./man/man5/mbox.html>:
 --
 -- @
 --   \>From quoting ensures that the resulting
@@ -213,14 +226,14 @@ skipFirstFrom :: ByteString -> Either String ByteString
 skipFirstFrom xs | bFrom == C.take 5 xs = Right $ C.drop 5 xs
                  | otherwise = Left "skipFirstFrom: badly formatted mbox: 'From ' expected at the beginning"
 
--- | Same as parseMbox but cat returns an error message.
+-- | Same as 'parseMbox' but cat returns an error message.
 safeParseMbox :: FilePath -> Int64 -> ByteString -> Either String (Mbox ByteString)
 safeParseMbox fp offset s | C.null s  = Right $ Mbox []
                           | otherwise = (Mbox . map (uncurry' $ finishMboxMessageParsing fp) . splitMboxMessages offset)
                                          <$> (skipFirstFrom s)
 
--- | Turns a ByteString into an Mbox by splitting on 'From' lines and
--- unquoting the '>*From's of the message.
+-- | Turns a 'ByteString' into an 'Mbox' by splitting on From_ lines and
+-- unquoting the \'\>\*From\'s of the message.
 parseMbox :: ByteString -> Mbox ByteString
 parseMbox = either error id . safeParseMbox "" 0
 
@@ -236,7 +249,7 @@ finishMboxMessageParsing fp !offset !inp = MboxMessage sender time (fromQuoting 
   where ((sender,time),body) = first (breakAt ' ') $ breakAt '\n' inp
         breakAt c = second (C.drop 1 {- a safe tail -}) . C.break (==c)
 
--- | Turns an mbox into a ByteString
+-- | Turns an mbox into a 'ByteString'
 printMbox :: Mbox ByteString -> ByteString
 printMbox = C.intercalate (C.singleton '\n') . map printMboxMessage . unMbox
 
@@ -250,13 +263,13 @@ printMboxFromLine (MboxMessage sender time _ _ _) =
     $ C.cons   '\n'
     $ C.empty
 
--- | Returns a ByteString given an mbox message.
+-- | Returns a 'ByteString' given an mbox message.
 printMboxMessage :: MboxMessage ByteString -> ByteString
 printMboxMessage msg = printMboxFromLine msg `C.append` fromQuoting (+1) (mboxMsgBody msg)
 
 -- lazyness at work!
 
--- | Given a file handle and an offset, parseOneMboxMessage returns
+-- | Given a file handle and an offset, 'parseOneMboxMessage' returns
 -- the message a this offset.
 parseOneMboxMessage :: FilePath -> Handle -> Integer -> IO (MboxMessage C.ByteString)
 parseOneMboxMessage fp fh offset = do
@@ -270,10 +283,10 @@ readRevMboxFile fp = readRevMboxHandle fp =<< openFile fp ReadMode
 
 -- | @readRevMboxHandle fp h@ returns a reversed mbox for a file handle.
 -- The file handle is supposed to be in text mode, readable.
--- buffering?
 readRevMboxHandle :: FilePath -> Handle -> IO (Mbox ByteString)
 readRevMboxHandle fp fh = do siz <- hFileSize fh
                              readRevMbox fp siz <$> readHandleBackward mboxChunkSize siz fh
+-- buffering issues?
 
 readRevMbox :: FilePath -> Integer -> [ByteString] -> Mbox ByteString
 readRevMbox fp filesize chunks = Mbox $ go (fromInteger filesize+1) (filter (not . C.null) chunks)
@@ -294,6 +307,8 @@ readRevMbox fp filesize chunks = Mbox $ go (fromInteger filesize+1) (filter (not
 
         finishmmp = uncurry' $ finishMboxMessageParsing fp
 
+-- Not exported.
+--
 -- | @readHandleBackward maxChunkSize size h@ lazily reads the @h@ file handle
 -- from the end. The file contents is returned as a reversed list of chunks.
 -- The result is such that if one apply @C.concat . reverse@ one get
