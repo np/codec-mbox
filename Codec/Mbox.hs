@@ -171,7 +171,7 @@ fromQuoting onLevel = C.tail . nextQuotedFrom . C.cons '\n'
                  Just off ->
                    let (!level, i') = first C.length $ C.span (=='>') $ C.drop (off + 1) input in
                    if C.take 5 i' == bFrom
-                    then (C.take (off + count) orig) `C.append`
+                    then C.take (off + count) orig `C.append`
                          mkQuotedFrom (onLevel level) `C.append`
                          nextQuotedFrom (C.drop 5 i')
                     else goNextQuotedFrom (off + level + count + 1) i'
@@ -229,8 +229,8 @@ skipFirstFrom xs | bFrom == C.take 5 xs = Right $ C.drop 5 xs
 -- | Same as 'parseMbox' but cat returns an error message.
 safeParseMbox :: FilePath -> Int64 -> ByteString -> Either String (Mbox ByteString)
 safeParseMbox fp offset s | C.null s  = Right $ Mbox []
-                          | otherwise = (Mbox . map (uncurry' $ finishMboxMessageParsing fp) . splitMboxMessages offset)
-                                         <$> (skipFirstFrom s)
+                          | otherwise = Mbox . map (uncurry' $ finishMboxMessageParsing fp) . splitMboxMessages offset
+                                         <$> skipFirstFrom s
 
 -- | Turns a 'ByteString' into an 'Mbox' by splitting on From_ lines and
 -- unquoting the \'\>\*From\'s of the message.
