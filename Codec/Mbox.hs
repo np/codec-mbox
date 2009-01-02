@@ -227,6 +227,8 @@ skipFirstFrom xs | bFrom == C.take 5 xs = Right $ C.drop 5 xs
                  | otherwise = Left "skipFirstFrom: badly formatted mbox: 'From ' expected at the beginning"
 
 -- | Same as 'parseMbox' but cat returns an error message.
+-- However only the line can cause an error message currently, so it's fine
+-- to dispatch on the either result.
 safeParseMbox :: FilePath -> Int64 -> ByteString -> Either String (Mbox ByteString)
 safeParseMbox fp offset s | C.null s  = Right $ Mbox []
                           | otherwise = Mbox . map (uncurry' $ finishMboxMessageParsing fp) . splitMboxMessages offset
