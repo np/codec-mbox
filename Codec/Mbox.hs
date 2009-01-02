@@ -42,6 +42,7 @@ module Codec.Mbox
   , fromQuoting
   , msgYear
   , msgMonthYear
+  , opposite
   ) where
 
 import Control.Arrow (first,second)
@@ -333,6 +334,10 @@ readHandleBackward maxChunkSize siz0 fh = go siz0
              (s :) <$> go siz'
 
 data Direction = Backward | Forward
+
+opposite :: Direction -> Direction
+opposite Forward  = Backward
+opposite Backward = Forward
 
 -- | Returns a mbox given a direction (forward/backward) and a file path.
 parseMboxFile :: Direction -> FilePath -> IO (Mbox ByteString)
