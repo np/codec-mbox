@@ -14,10 +14,12 @@ description:     The library provides functions to read, write, and
                  bytestrings and can handle very big mailboxes.
 stability:       Provisional
 build-type:      Simple
-build-depends:   base>=3.0, containers>=0.1, bytestring>=0.9, data-accessor>=0.1.4
-exposed-modules: Codec.Mbox
-ghc-options:     -Wall
-extensions:      BangPatterns, TypeOperators
+
+library
+  build-depends:   base>=3.0, containers>=0.1, bytestring>=0.9, data-accessor>=0.1.4
+  exposed-modules: Codec.Mbox
+  ghc-options:     -Wall
+  extensions:      BangPatterns, TypeOperators
 
 --source-repository head
 --  type:     darcs
