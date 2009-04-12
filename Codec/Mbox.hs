@@ -67,7 +67,7 @@ uncurry' f (x :*: y) = f x y
 --import Test.QuickCheck
 
 -- | An 'Mbox' is a list of 'MboxMessage'
-newtype Mbox s = Mbox { unMbox :: [MboxMessage s] }
+newtype Mbox s = Mbox { mboxMessages :: [MboxMessage s] }
   deriving (Eq, Ord, Show)
 
 -- | An 'MboxMessage' represent an mbox message, featuring
@@ -254,7 +254,7 @@ finishMboxMessageParsing fp !offset !inp = MboxMessage sender time (fromQuoting 
 
 -- | Turns an mbox into a 'ByteString'
 printMbox :: Mbox ByteString -> ByteString
-printMbox = C.intercalate (C.singleton '\n') . map printMboxMessage . unMbox
+printMbox = C.intercalate (C.singleton '\n') . map printMboxMessage . mboxMessages
 
 -- | Returns an header line in mbox format given an mbox message.
 printMboxFromLine :: MboxMessage ByteString -> ByteString
@@ -279,7 +279,7 @@ parseOneMboxMessage fp fh offset = do
   hSeek fh AbsoluteSeek offset
   s <- C.hGetContents fh
   a <- either fail return $ safeParseMbox fp (fromInteger offset) s
-  (maybe (fail "parseOneMboxMessage: end of file") return . listToMaybe . unMbox) a
+  (maybe (fail "parseOneMboxMessage: end of file") return . listToMaybe . mboxMessages) a
 
 readRevMboxFile :: FilePath -> IO (Mbox ByteString)
 readRevMboxFile fp = readRevMboxHandle fp =<< openFile fp ReadMode
