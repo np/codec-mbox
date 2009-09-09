@@ -26,9 +26,9 @@ module Codec.Mbox
   , parseOneMboxMessage
 
   -- * Mailbox printing functions
-  , printMbox
-  , printMboxMessage
-  , printMboxFromLine
+  , showMbox
+  , showMboxMessage
+  , showMboxFromLine
 
   -- * Accessors
   , mboxMsgSenderA
@@ -179,8 +179,8 @@ fromQuoting onLevel = C.tail . nextQuotedFrom . C.cons '\n'
 
 {-
 prop_fromQuotingInv (NonNegative n) s = s == fromQuoting (+(-n)) (fromQuoting (+n) s)
-prop_unparse_parse m = either (const False) (==m) $ safeParseMbox (printMbox m)
-prop_parse_unparse m = let s = printMbox m in Right s == (printMbox <$> safeParseMbox s)
+prop_unparse_parse m = either (const False) (==m) $ safeParseMbox (showMbox m)
+prop_parse_unparse m = let s = showMbox m in Right s == (showMbox <$> safeParseMbox s)
 
 -- | Prefered xs: have the xs elements as favorites.
 newtype Prefered a = Prefered { unPrefered :: a }
@@ -253,12 +253,12 @@ finishMboxMessageParsing fp !offset !inp = MboxMessage sender time (fromQuoting 
         breakAt c = second (C.drop 1 {- a safe tail -}) . C.break (==c)
 
 -- | Turns an mbox into a 'ByteString'
-printMbox :: Mbox ByteString -> ByteString
-printMbox = C.intercalate (C.singleton '\n') . map printMboxMessage . mboxMessages
+showMbox :: Mbox ByteString -> ByteString
+showMbox = C.intercalate (C.singleton '\n') . map showMboxMessage . mboxMessages
 
 -- | Returns an header line in mbox format given an mbox message.
-printMboxFromLine :: MboxMessage ByteString -> ByteString
-printMboxFromLine (MboxMessage sender time _ _ _) =
+showMboxFromLine :: MboxMessage ByteString -> ByteString
+showMboxFromLine (MboxMessage sender time _ _ _) =
   C.append bFrom
     $ C.append sender
     $ C.cons   ' '
@@ -267,8 +267,8 @@ printMboxFromLine (MboxMessage sender time _ _ _) =
     $ C.empty
 
 -- | Returns a 'ByteString' given an mbox message.
-printMboxMessage :: MboxMessage ByteString -> ByteString
-printMboxMessage msg = printMboxFromLine msg `C.append` fromQuoting (+1) (mboxMsgBody msg)
+showMboxMessage :: MboxMessage ByteString -> ByteString
+showMboxMessage msg = showMboxFromLine msg `C.append` fromQuoting (+1) (mboxMsgBody msg)
 
 -- lazyness at work!
 
