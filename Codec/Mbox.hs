@@ -58,7 +58,7 @@ import System.IO.Unsafe (unsafeInterleaveIO)
 data a :*: b = !a :*: !b
 
 first' :: (a -> b) -> (a :*: c) -> (b :*: c)
-first' f !(a :*: c) = (f a :*: c)
+first' f !(a :*: c) = f a :*: c
 {-# INLINE first' #-}
 uncurry' :: (a -> b -> c) -> a :*: b -> c
 uncurry' f (x :*: y) = f x y
@@ -262,10 +262,10 @@ showMbox = C.intercalate (C.singleton '\n') . map showMboxMessage . mboxMessages
 showMboxFromLine :: MboxMessage ByteString -> ByteString
 showMboxFromLine (MboxMessage sender time _ _ _) =
   C.append bFrom
-    $ C.append sender
-    $ C.cons   ' '
-    $ C.append time
-    $ C.cons   '\n'
+    . C.append sender
+    . C.cons   ' '
+    . C.append time
+    . C.cons   '\n'
     $ C.empty
 
 -- | Returns a 'ByteString' given an mbox message.
