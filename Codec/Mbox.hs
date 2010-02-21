@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TypeOperators #-}
+{-# LANGUAGE BangPatterns, TypeOperators, TemplateHaskell #-}
 --------------------------------------------------------------------
 -- |
 -- Module    : Codec.Mbox
@@ -30,12 +30,12 @@ module Codec.Mbox
   , showMboxMessage
   , showMboxFromLine
 
-  -- * Accessors
-  , mboxMsgSenderA
-  , mboxMsgTimeA
-  , mboxMsgBodyA
-  , mboxMsgFileA
-  , mboxMsgOffsetA
+  -- * First-class labels
+  , mboxMsgSender
+  , mboxMsgTime
+  , mboxMsgBody
+  , mboxMsgFile
+  , mboxMsgOffset
 
   -- * Misc
   , Month(..)
@@ -48,7 +48,7 @@ module Codec.Mbox
 import Control.Arrow (first,second)
 import Control.Applicative ((<$>))
 import qualified Data.ByteString.Lazy.Char8 as C -- Char8 interface over Lazy ByteString's
-import Data.Accessor
+import Data.Record.Label
 import Data.ByteString.Lazy (ByteString)
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
@@ -72,33 +72,35 @@ newtype Mbox s = Mbox { mboxMessages :: [MboxMessage s] }
 
 -- | An 'MboxMessage' represent an mbox message, featuring
 -- the sender, the date-time, and the message body.
-data MboxMessage s = MboxMessage { mboxMsgSender :: s
-                                 , mboxMsgTime   :: s
-                                 , mboxMsgBody   :: s
-                                 , mboxMsgFile   :: FilePath
-                                 , mboxMsgOffset :: Int64 }
+data MboxMessage s = MboxMessage { _mboxMsgSender  :: s
+                                 , _mboxMsgTime    :: s
+                                 , _mboxMsgBody    :: s
+                                 , _mboxMsgFile    :: FilePath
+                                 , _mboxMsgOffset  :: Int64 }
   deriving (Eq, Ord, Show)
 
-mboxMsgSenderA :: Accessor (MboxMessage s) s
-mboxMsgSenderA = accessor mboxMsgSender (\x r -> r{mboxMsgSender=x})
+$(mkLabels [''MboxMessage])
 
-mboxMsgTimeA :: Accessor (MboxMessage s) s
-mboxMsgTimeA = accessor mboxMsgTime (\x r -> r{mboxMsgTime=x})
+-- | First-class label to message's sender
+mboxMsgSender  :: MboxMessage s :-> s
 
-mboxMsgBodyA :: Accessor (MboxMessage s) s
-mboxMsgBodyA = accessor mboxMsgBody (\x r -> r{mboxMsgBody=x})
+-- | First-class label to the date and time of the given message
+mboxMsgTime    :: MboxMessage s :-> s
 
-mboxMsgFileA :: Accessor (MboxMessage s) FilePath
-mboxMsgFileA = accessor mboxMsgFile (\x r -> r{mboxMsgFile=x})
+-- | First-class label to message's raw body
+mboxMsgBody    :: MboxMessage s :-> s
 
-mboxMsgOffsetA :: Accessor (MboxMessage s) Int64
-mboxMsgOffsetA = accessor mboxMsgOffset (\x r -> r{mboxMsgOffset=x})
+-- | First-class label to the file path of mbox's message
+mboxMsgFile    :: MboxMessage s :-> FilePath
+
+-- | First-class label to the offset of the given message into the mbox
+mboxMsgOffset  :: MboxMessage s :-> Int64
 
 readYear :: MboxMessage C.ByteString -> C.ByteString -> Int
 readYear m s =
  case reads $ C.unpack s of
    [(i, "")] -> i
-   _         -> error ("readYear: badly formatted date (year) in " ++ show (C.unpack $ mboxMsgTime m))
+   _         -> error ("readYear: badly formatted date (year) in " ++ show (C.unpack $ _mboxMsgTime m))
 
 data Month = Jan
            | Feb
@@ -118,16 +120,16 @@ readMonth :: MboxMessage C.ByteString -> C.ByteString -> Month
 readMonth m s =
   case reads $ C.unpack s of
     [(month, "")] -> month
-    _             -> error ("readMonth: badly formatted date (month) in " ++ show (C.unpack $ mboxMsgTime m))
+    _             -> error ("readMonth: badly formatted date (month) in " ++ show (C.unpack $ _mboxMsgTime m))
 
 msgYear :: MboxMessage C.ByteString -> Int
-msgYear m = readYear m . last . C.split ' ' . mboxMsgTime $ m
+msgYear m = readYear m . last . C.split ' ' . _mboxMsgTime $ m
 
 msgMonthYear :: MboxMessage C.ByteString -> (Month,Int)
 msgMonthYear m =
- case filter (not . C.null) . C.split ' ' . mboxMsgTime $ m of
+ case filter (not . C.null) . C.split ' ' . _mboxMsgTime $ m of
    [_wday, month, _mday, _hour, year] -> (readMonth m month, readYear m year)
-   _ -> error ("msgMonthYear: badly formatted date in " ++ show (C.unpack $ mboxMsgTime m))
+   _ -> error ("msgMonthYear: badly formatted date in " ++ show (C.unpack $ _mboxMsgTime m))
 
 nextFrom :: ByteString -> Maybe (Int64, ByteString, ByteString)
 nextFrom !orig = goNextFrom 0 orig
@@ -268,7 +270,7 @@ showMboxFromLine (MboxMessage sender time _ _ _) =
 
 -- | Returns a 'ByteString' given an mbox message.
 showMboxMessage :: MboxMessage ByteString -> ByteString
-showMboxMessage msg = showMboxFromLine msg `C.append` fromQuoting (+1) (mboxMsgBody msg)
+showMboxMessage msg = showMboxFromLine msg `C.append` fromQuoting (+1) (_mboxMsgBody msg)
 
 -- lazyness at work!
 
