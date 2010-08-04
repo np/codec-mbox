@@ -79,7 +79,7 @@ data MboxMessage s = MboxMessage { _mboxMsgSender  :: s
                                  , _mboxMsgOffset  :: Int64 }
   deriving (Eq, Ord, Show)
 
-$(mkLabels [''MboxMessage])
+$(mkLabelsNoTypes [''MboxMessage])
 
 -- | First-class label to message's sender
 mboxMsgSender  :: MboxMessage s :-> s
