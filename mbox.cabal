@@ -1,6 +1,6 @@
 name:            mbox
 cabal-Version:   >=1.2
-version:         0.1
+version:         0.2.0.0
 license:         BSD3
 license-File:    LICENSE
 copyright:       (c) Nicolas Pouillard
