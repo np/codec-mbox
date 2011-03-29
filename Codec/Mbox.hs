@@ -170,7 +170,10 @@ fromQuoting onLevel = C.tail . nextQuotedFrom . C.cons '\n'
   where nextQuotedFrom !orig = goNextQuotedFrom 0 orig
          where goNextQuotedFrom !count !input =
                 case C.elemIndex '\n' input of
-                 Nothing -> orig
+                 Nothing ->
+                   -- TODO,NOTE: here I don't know what to do between the
+                   -- following code and just returning `orig'
+                   if C.null input then orig else orig `C.snoc` '\n'
                  Just off ->
                    let (!level, i') = first C.length $ C.span (=='>') $ C.drop (off + 1) input in
                    if C.take 5 i' == bFrom
