@@ -48,7 +48,7 @@ module Codec.Mbox
 import Control.Arrow (first,second)
 import Control.Applicative ((<$>))
 import qualified Data.ByteString.Lazy.Char8 as C -- Char8 interface over Lazy ByteString's
-import Data.Record.Label
+import Data.Label
 import Data.ByteString.Lazy (ByteString)
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)

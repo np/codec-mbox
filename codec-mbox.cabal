@@ -1,6 +1,6 @@
-name:            mbox
+name:            codec-mbox
 cabal-Version:   >=1.2
-version:         0.2.0.0
+version:         0.1.0.0
 license:         BSD3
 license-File:    LICENSE
 copyright:       (c) Nicolas Pouillard
@@ -16,17 +16,7 @@ stability:       Provisional
 build-type:      Simple
 
 library
-  build-depends:   base (==3.* || ==4.*), bytestring>=0.9, fclabels>=0.9
+  build-depends:   base (==3.* || ==4.*), bytestring>=0.9, fclabels>=1.0
   exposed-modules: Codec.Mbox
   ghc-options:     -Wall
   extensions:      BangPatterns, TypeOperators
-
---source-repository head
---  type:     darcs
---  location: http://code.haskell.org/mbox
-
---source-repository this
---  type:     darcs
---  location: http://code.haskell.org/mbox
---  tag:      0.1
-
