@@ -16,7 +16,7 @@ stability:       Provisional
 build-type:      Simple
 
 library
-  build-depends:   base (==3.* || ==4.*), bytestring>=0.9, fclabels>=1.0
+  build-depends:   base (==3.* || ==4.*), bytestring>=0.9
   exposed-modules: Codec.Mbox
   ghc-options:     -Wall
   extensions:      BangPatterns, TypeOperators

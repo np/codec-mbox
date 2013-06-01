@@ -48,7 +48,6 @@ module Codec.Mbox
 import Control.Arrow (first,second)
 import Control.Applicative ((<$>))
 import qualified Data.ByteString.Lazy.Char8 as C -- Char8 interface over Lazy ByteString's
-import Data.Label
 import Data.ByteString.Lazy (ByteString)
 import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
@@ -79,22 +78,25 @@ data MboxMessage s = MboxMessage { _mboxMsgSender  :: s
                                  , _mboxMsgOffset  :: Int64 }
   deriving (Eq, Ord, Show)
 
-$(mkLabelsNoTypes [''MboxMessage])
+-- | Message's sender lens
+mboxMsgSender  :: Functor f => (a -> f a) -> MboxMessage a -> f (MboxMessage a)
+mboxMsgSender f (MboxMessage s t b p o) = (\x -> MboxMessage x t b p o) <$> f s
 
--- | First-class label to message's sender
-mboxMsgSender  :: MboxMessage s :-> s
+-- | Message's time lens
+mboxMsgTime    :: Functor f => (a -> f a) -> MboxMessage a -> f (MboxMessage a)
+mboxMsgTime f (MboxMessage s t b p o) = (\x -> MboxMessage s x b p o) <$> f t
 
--- | First-class label to the date and time of the given message
-mboxMsgTime    :: MboxMessage s :-> s
-
--- | First-class label to message's raw body
-mboxMsgBody    :: MboxMessage s :-> s
+-- | Message's body lens
+mboxMsgBody    :: Functor f => (a -> f a) -> MboxMessage a -> f (MboxMessage a)
+mboxMsgBody f (MboxMessage s t b p o) = (\x -> MboxMessage s t x p o) <$> f b
 
 -- | First-class label to the file path of mbox's message
-mboxMsgFile    :: MboxMessage s :-> FilePath
+mboxMsgFile    :: Functor f => (FilePath -> f FilePath) -> MboxMessage a -> f (MboxMessage a)
+mboxMsgFile f (MboxMessage s t b p o) = (\x -> MboxMessage s t b x o) <$> f p
 
 -- | First-class label to the offset of the given message into the mbox
-mboxMsgOffset  :: MboxMessage s :-> Int64
+mboxMsgOffset  :: Functor f => (Int64-> f Int64) -> MboxMessage a -> f (MboxMessage a)
+mboxMsgOffset f (MboxMessage s t b p o) = (\x -> MboxMessage s t b p x) <$> f o
 
 readYear :: MboxMessage C.ByteString -> C.ByteString -> Int
 readYear m s =
