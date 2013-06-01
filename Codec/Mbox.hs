@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, TypeOperators, TemplateHaskell #-}
+{-# LANGUAGE BangPatterns #-}
 --------------------------------------------------------------------
 -- |
 -- Module    : Codec.Mbox
@@ -54,12 +54,12 @@ import Data.Maybe (listToMaybe)
 import System.IO
 import System.IO.Unsafe (unsafeInterleaveIO)
 
-data a :*: b = !a :*: !b
+data P a b = !a :*: !b
 
-first' :: (a -> b) -> (a :*: c) -> (b :*: c)
+first' :: (a -> b) -> P a c -> P b c
 first' f !(a :*: c) = f a :*: c
 {-# INLINE first' #-}
-uncurry' :: (a -> b -> c) -> a :*: b -> c
+uncurry' :: (a -> b -> c) -> P a b -> c
 uncurry' f (x :*: y) = f x y
 {-# INLINE uncurry' #-}
 
@@ -247,7 +247,7 @@ safeParseMbox fp offset s | C.null s  = Right $ Mbox []
 parseMbox :: ByteString -> Mbox ByteString
 parseMbox = either error id . safeParseMbox "" 0
 
-splitMboxMessages :: Int64 -> ByteString -> [Int64 :*: ByteString]
+splitMboxMessages :: Int64 -> ByteString -> [P Int64 ByteString]
 splitMboxMessages !offset !input =
   case nextFrom input of
     Nothing | C.null input      -> []
